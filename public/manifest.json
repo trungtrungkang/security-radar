@@ -1,0 +1,36 @@
+{
+  "name": "Security Radar",
+  "short_name": "SecurityRadar",
+  "description": "Real-time security vulnerability and release tracking for Node.js, Next.js, and more.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0E0E11",
+  "theme_color": "#C8A856",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/images/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/logo_192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/logo_512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": [
+    "security",
+    "development"
+  ],
+  "lang": "en",
+  "dir": "ltr"
+}

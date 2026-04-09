@@ -95,9 +95,14 @@ async function notifyAlerts(feed: any, db: any) {
             const emails = subsData.documents.map((doc: any) => doc.email);
 
             if (emails.length > 0) {
+                const appDomain = process.env.VERCEL_PROJECT_PRODUCTION_URL
+                    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+                    : (process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'));
+
                 const htmlTemplate = `
                     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                        <h2 style="color: ${feed.severity === 'Critical' ? '#dc2626' : '#ea580c'};">🚨 Security Radar Alert</h2>
+                        <img src="${appDomain}/images/logo_bg.png" alt="Security Radar" width="64" style="border-radius: 8px; margin-bottom: 12px; display: block;" />
+                        <h2 style="color: ${feed.severity === 'Critical' ? '#dc2626' : '#ea580c'}; margin-top: 0;">🚨 Security Radar Alert</h2>
                         <h3>New <strong>${feed.severity}</strong> Vulnerability found in ${feed.technology}!</h3>
                         <p><strong>Title:</strong> ${feed.title}</p>
                         <p><strong>Published Date:</strong> ${feed.date}</p>
