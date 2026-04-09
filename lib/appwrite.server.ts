@@ -22,6 +22,7 @@ const createAdminClient = () => {
 export const appwriteServer = createAdminClient();
 export const APPWRITE_DB_ID = process.env.NEXT_PUBLIC_APPWRITE_DB_ID || 'security_feeds_db';
 export const APPWRITE_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_COLLECTION_ID || 'cve_data';
+export const APPWRITE_SUBSCRIBER_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_SUBSCRIBER_COLLECTION_ID || 'subscribers';
 
 export async function ensureAppwriteConfig() {
     const db = appwriteServer.databases;
@@ -39,7 +40,7 @@ export async function ensureAppwriteConfig() {
     }
 
     try {
-        // Try to get collection
+        // Try to get CVE collection
         await db.getCollection(APPWRITE_DB_ID, APPWRITE_COLLECTION_ID);
     } catch (e: any) {
         if (e.code === 404) {
@@ -53,7 +54,24 @@ export async function ensureAppwriteConfig() {
             await db.createStringAttribute(APPWRITE_DB_ID, APPWRITE_COLLECTION_ID, 'description', 5000, true);
             await db.createUrlAttribute(APPWRITE_DB_ID, APPWRITE_COLLECTION_ID, 'link', true);
             
-            console.log('Waiting for attributes to be created...');
+            console.log('Waiting for CVE attributes to be created...');
+            await new Promise(resolve => setTimeout(resolve, 3000));
+        } else {
+            throw e;
+        }
+    }
+
+    try {
+        // Try to get Subscribers collection
+        await db.getCollection(APPWRITE_DB_ID, APPWRITE_SUBSCRIBER_COLLECTION_ID);
+    } catch (e: any) {
+        if (e.code === 404) {
+            console.log('Subscribers collection not found. Creating collection...');
+            await db.createCollection(APPWRITE_DB_ID, APPWRITE_SUBSCRIBER_COLLECTION_ID, 'Newsletter Subscribers');
+            console.log('Creating subscriber attributes...');
+            await db.createEmailAttribute(APPWRITE_DB_ID, APPWRITE_SUBSCRIBER_COLLECTION_ID, 'email', true);
+            
+            console.log('Waiting for Subscriber attributes to be created...');
             await new Promise(resolve => setTimeout(resolve, 3000));
         } else {
             throw e;

@@ -11,6 +11,34 @@ export default function Home() {
   const [feeds, setFeeds] = useState<SecurityFeed[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  
+  // Newsletter States
+  const [email, setEmail] = useState('');
+  const [subscribing, setSubscribing] = useState(false);
+  const [subMessage, setSubMessage] = useState('');
+
+  const handleSubscribe = async () => {
+    if (!email) return;
+    setSubscribing(true);
+    setSubMessage('');
+    try {
+      const res = await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSubMessage('✅ Subscribed successfully!');
+        setEmail('');
+      } else {
+        setSubMessage('❌ ' + data.error);
+      }
+    } catch (e) {
+      setSubMessage('❌ Network error. Please try again.');
+    }
+    setSubscribing(false);
+  };
 
   const loadFeeds = async () => {
     setLoading(true);
@@ -139,10 +167,22 @@ export default function Home() {
                 placeholder="Email address" 
                 className={styles.input} 
                 style={{ padding: '8px 12px', fontSize: '0.9rem' }}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
-              <button className="btn btn-primary" style={{ padding: '8px 12px', width: '100%', fontSize: '0.9rem' }}>
-                Subscribe
+              <button 
+                className="btn btn-primary" 
+                style={{ padding: '8px 12px', width: '100%', fontSize: '0.9rem' }}
+                onClick={handleSubscribe}
+                disabled={subscribing}
+              >
+                {subscribing ? 'Submitting...' : 'Subscribe'}
               </button>
+              {subMessage && (
+                <div style={{ fontSize: '0.8rem', marginTop: '4px', color: subMessage.includes('✅') ? 'var(--severity-low)' : 'var(--severity-critical)' }}>
+                  {subMessage}
+                </div>
+              )}
             </div>
           </div>
 

@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
-import { appwriteServer, APPWRITE_DB_ID, APPWRITE_COLLECTION_ID, ensureAppwriteConfig } from '@/lib/appwrite.server';
-import { ID } from 'node-appwrite';
+import { appwriteServer, APPWRITE_DB_ID, APPWRITE_COLLECTION_ID, APPWRITE_SUBSCRIBER_COLLECTION_ID, ensureAppwriteConfig } from '@/lib/appwrite.server';
+import { ID, Query } from 'node-appwrite';
+import { Resend } from 'resend';
+import Parser from 'rss-parser';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+const rssParser = new Parser();
 
 const GITHUB_SOURCES = [
     { owner: 'vercel', repo: 'next.js', tech: 'Next.js' },
@@ -26,24 +31,62 @@ const CIRCL_SOURCES = [
     { vendor: 'apple', product: 'safari', tech: 'Safari' }
 ];
 
-async function notifyMatrix(feed: any) {
+async function notifyAlerts(feed: any, db: any) {
+    // 1. Notify Matrix
     const webhookUrl = process.env.MATRIX_WEBHOOK_URL;
-    if (!webhookUrl) return;
+    if (webhookUrl) {
+        const payload = {
+            text: `🚨 [${feed.severity} Alert] ${feed.technology} - ${feed.title}\nAdvisory: ${feed.link}`,
+            msgtype: "m.text"
+        };
 
-    const payload = {
-        text: `🚨 [${feed.severity} Alert] ${feed.technology} - ${feed.title}\nAdvisory: ${feed.link}`,
-        msgtype: "m.text"
-    };
+        try {
+            await fetch(webhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            console.log(`Matrix notification sent for ${feed.technology}`);
+        } catch (error) {
+            console.error('Matrix Webhook Error:', error);
+        }
+    }
 
-    try {
-        await fetch(webhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        console.log(`Notification sent for ${feed.technology}`);
-    } catch (error) {
-        console.error('Matrix Webhook Error:', error);
+    // 2. Notify Email Subscribers via Resend
+    if (process.env.RESEND_API_KEY) {
+        try {
+            const subsData = await db.listDocuments(APPWRITE_DB_ID, APPWRITE_SUBSCRIBER_COLLECTION_ID, [
+                Query.limit(100) // Supports up to 100 subscribers per request right now
+            ]);
+            
+            const emails = subsData.documents.map((doc: any) => doc.email);
+            
+            if (emails.length > 0) {
+                const htmlTemplate = `
+                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: ${feed.severity === 'Critical' ? '#dc2626' : '#ea580c'};">🚨 Security Radar Alert</h2>
+                        <h3>New <strong>${feed.severity}</strong> Vulnerability found in ${feed.technology}!</h3>
+                        <p><strong>Title:</strong> ${feed.title}</p>
+                        <p><strong>Published Date:</strong> ${feed.date}</p>
+                        <hr />
+                        <p style="white-space: pre-wrap;">${feed.description}</p>
+                        <br />
+                        <a href="${feed.link}" style="display: inline-block; padding: 10px 20px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 5px;">View Full Advisory</a>
+                    </div>
+                `;
+
+                // Send email
+                await resend.emails.send({
+                    from: 'Security Radar <alerts@backingscore.com>',
+                    to: emails, // Sending dynamically to multiple directly or bcc to mask
+                    subject: `[${feed.severity}] ${feed.technology} Vulnerability Alert`,
+                    html: htmlTemplate
+                });
+                console.log(`Resend email dispatched to ${emails.length} subscribers.`);
+            }
+        } catch (error) {
+            console.error('Resend Email Error:', error);
+        }
     }
 }
 
@@ -109,7 +152,7 @@ export async function GET(request: Request) {
                             newCount++;
 
                             if (severity === 'High' || severity === 'Critical') {
-                                await notifyMatrix(payload);
+                                await notifyAlerts(payload, db);
                             }
                         } catch (err: any) {
                             console.error(`Failed to create document ${documentId}:`, err);
@@ -182,7 +225,7 @@ export async function GET(request: Request) {
                             newCount++;
 
                             if (severity === 'High' || severity === 'Critical') {
-                                await notifyMatrix(payload);
+                                await notifyAlerts(payload, db);
                             }
                         } catch (err: any) {
                             console.error(`Failed to create CIRCL document ${documentId}:`, err);
@@ -190,6 +233,48 @@ export async function GET(request: Request) {
                     }
                 }
             }
+        }
+
+        // 3. Fetch from Node.js RSS Blog Feed for Zero-day early warnings
+        try {
+            const feedUrl = 'https://nodejs.org/en/feed/blog.xml';
+            const feed = await rssParser.parseURL(feedUrl);
+            
+            for (const item of feed.items) {
+                const titleLower = item.title?.toLowerCase() || '';
+                const linkLower = item.link?.toLowerCase() || '';
+                
+                // Filter specifically for Node.js Security Releases
+                if (titleLower.includes('security') && linkLower.includes('/vulnerability/')) {
+                    const urlSegments = item.link?.split('/') || [];
+                    const slug = urlSegments.pop() || ID.unique(); 
+                    
+                    const payload = {
+                        title: `[Early Warning] ${item.title}`,
+                        technology: 'Node.js',
+                        severity: 'High', // Default to High to trigger Resend blast
+                        date: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
+                        description: `A new Security Release has been announced by the Node.js team on their official blog. \nIt is highly recommended to prioritize patching as soon as the release drops.\n\nRead the full advisory and release boundaries here: \n${item.link}`,
+                        link: item.link || 'https://nodejs.org/en/blog'
+                    };
+
+                    try {
+                        await db.getDocument(APPWRITE_DB_ID, APPWRITE_COLLECTION_ID, slug);
+                    } catch (e: any) {
+                        if (e.code === 404) {
+                            try {
+                                await db.createDocument(APPWRITE_DB_ID, APPWRITE_COLLECTION_ID, slug, payload);
+                                newCount++;
+                                await notifyAlerts(payload, db);
+                            } catch (err: any) {
+                                console.error(`Failed to create RSS document ${slug}:`, err);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('RSS Feed Error:', error);
         }
 
         return NextResponse.json({ success: true, newRecordsInserted: newCount });
