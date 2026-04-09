@@ -70,16 +70,18 @@ export default function Home() {
           Real-time security vulnerability and release tracking for your core stack.
         </p>
         
-        <div style={{ marginTop: '24px' }}>
-          <button 
-            onClick={syncFromGitHub} 
-            disabled={syncing}
-            className="btn btn-primary"
-            style={{ fontSize: '0.85rem', padding: '6px 12px' }}
-          >
-            {syncing ? 'Fetching...' : 'Sync with GitHub (Cron Simulation)'}
-          </button>
-        </div>
+        {process.env.NODE_ENV === 'development' && (
+          <div style={{ marginTop: '24px' }}>
+            <button 
+              onClick={syncFromGitHub} 
+              disabled={syncing}
+              className="btn btn-primary"
+              style={{ fontSize: '0.85rem', padding: '6px 12px' }}
+            >
+              {syncing ? 'Fetching...' : 'Sync with GitHub (Cron Simulation)'}
+            </button>
+          </div>
+        )}
       </div>
 
       {!loading && feeds.length > 0 && (

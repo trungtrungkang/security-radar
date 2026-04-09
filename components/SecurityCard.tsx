@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import styles from './SecurityCard.module.css';
 
 export type SecurityFeed = {
@@ -43,9 +44,9 @@ export default function SecurityCard({ feed }: { feed: SecurityFeed }) {
       <p className={styles.description}>{feed.description}</p>
       
       <div className={styles.footer}>
-        <a href={feed.link} target="_blank" rel="noopener noreferrer" className={styles.readMore}>
-          Read Advisory ↗
-        </a>
+        <Link href={`/cve/${feed.id}`} className={styles.readMore}>
+          View Details →
+        </Link>
       </div>
     </article>
   );
