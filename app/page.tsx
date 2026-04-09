@@ -6,12 +6,12 @@ import FilterBar from '@/components/FilterBar';
 import styles from './page.module.css';
 
 export default function Home() {
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState<string>('');
   const [feeds, setFeeds] = useState<SecurityFeed[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
-  // Fetch from database on load
   const loadFeeds = async () => {
     setLoading(true);
     try {
@@ -21,7 +21,7 @@ export default function Home() {
         setFeeds(json.data);
       }
     } catch (e) {
-      console.error(e);
+      console.error('List feeds error:', e);
     }
     setLoading(false);
   };
@@ -30,35 +30,71 @@ export default function Home() {
     loadFeeds();
   }, []);
 
-  // Trigger GitHub Cron sync manually
   const syncFromGitHub = async () => {
+    let headers: Record<string, string> = {};
+    if (process.env.NODE_ENV !== 'development') {
+      const secret = window.prompt("Vercel CRON_SECRET is required to force a manual sync on Production. Enter secret:");
+      if (!secret) return; 
+      headers['Authorization'] = `Bearer ${secret}`;
+    }
+
     setSyncing(true);
     try {
-      const res = await fetch('/api/cron/fetch-security');
+      const res = await fetch('/api/cron/fetch-security', { headers });
       const json = await res.json();
       if (json.success) {
-        alert(`Sync complete! ${json.newRecordsInserted} records inserted/updated.`);
-        loadFeeds(); // reload the data
+        alert(`Sync complete! ${json.newRecordsInserted} new/updated records processed.`);
+        loadFeeds();
       } else {
         alert('Sync failed: ' + json.error);
       }
     } catch (e) {
-      alert('Sync failed.');
+      alert('Sync failed due to network error.');
     }
     setSyncing(false);
   };
 
-  // Extract unique technologies from feeds
   const technologies = useMemo(() => {
     const techSet = new Set(feeds.map(feed => feed.technology));
     return Array.from(techSet).sort();
   }, [feeds]);
 
-  // Filter feeds
+  const datesWithCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    feeds.forEach(feed => {
+      try {
+        const dateStr = new Date(feed.date).toISOString().split('T')[0];
+        counts[dateStr] = (counts[dateStr] || 0) + 1;
+      } catch (e) {}
+    });
+    return Object.entries(counts).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [feeds]);
+
+  const toggleFilter = (tech: string) => {
+    setActiveFilters(prev => 
+      prev.includes(tech) 
+        ? prev.filter(t => t !== tech) 
+        : [...prev, tech]
+    );
+  };
+
+  const clearFilters = () => setActiveFilters([]);
+
   const filteredFeeds = useMemo(() => {
-    if (!activeFilter) return feeds;
-    return feeds.filter(feed => feed.technology === activeFilter);
-  }, [activeFilter, feeds]);
+    return feeds.filter(feed => {
+      const matchTech = activeFilters.length === 0 || activeFilters.includes(feed.technology);
+      let matchDate = true;
+      if (dateFilter) {
+        try {
+          const feedDateString = new Date(feed.date).toISOString().split('T')[0];
+          matchDate = feedDateString === dateFilter;
+        } catch(e) {
+          matchDate = true;
+        }
+      }
+      return matchTech && matchDate;
+    });
+  }, [activeFilters, dateFilter, feeds]);
 
   return (
     <main className={`container ${styles.main}`}>
@@ -69,63 +105,86 @@ export default function Home() {
         <p className={styles.subtitle}>
           Real-time security vulnerability and release tracking for your core stack.
         </p>
-        
-        {process.env.NODE_ENV === 'development' && (
-          <div style={{ marginTop: '24px' }}>
+      </div>
+
+      <div className={styles.contentLayout}>
+        <aside className={styles.sidebar}>
+          {!loading && feeds.length > 0 ? (
+            <FilterBar 
+              technologies={technologies} 
+              activeFilters={activeFilters}
+              onToggleFilter={toggleFilter}
+              onClearFilters={clearFilters}
+              dateFilter={dateFilter}
+              onDateChange={setDateFilter}
+              datesWithCounts={datesWithCounts}
+              totalFeeds={feeds.length}
+            />
+          ) : (
+            <div className="glass-panel" style={{ padding: '24px', opacity: 0.7 }}>
+              Filters loading...
+            </div>
+          )}
+
+          <div className="glass-panel" style={{ marginTop: '32px', padding: '20px' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              Alert Systems
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>
+              Instant matrix/email notifications for your stack.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <input 
+                type="email" 
+                placeholder="Email address" 
+                className={styles.input} 
+                style={{ padding: '8px 12px', fontSize: '0.9rem' }}
+              />
+              <button className="btn btn-primary" style={{ padding: '8px 12px', width: '100%', fontSize: '0.9rem' }}>
+                Subscribe
+              </button>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '24px', textAlign: 'center' }}>
             <button 
               onClick={syncFromGitHub} 
               disabled={syncing}
-              className="btn btn-primary"
-              style={{ fontSize: '0.85rem', padding: '6px 12px' }}
+              style={{ 
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted)',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                opacity: 0.7
+              }}
             >
-              {syncing ? 'Fetching...' : 'Sync with GitHub (Cron Simulation)'}
+              {syncing ? 'Syncing hidden...' : 'Force manual sync'}
             </button>
           </div>
-        )}
-      </div>
+        </aside>
 
-      {!loading && feeds.length > 0 && (
-        <FilterBar 
-          technologies={technologies} 
-          activeFilter={activeFilter} 
-          onFilterChange={setActiveFilter} 
-        />
-      )}
-
-      {loading ? (
-        <div className={styles.emptyState}>Loading security feeds from Appwrite DB...</div>
-      ) : feeds.length === 0 ? (
-        <div className={styles.emptyState}>
-          No security advisories found in the database. <br/>
-          <strong>Click "Sync with GitHub" above to initialize Appwrite DB and load data!</strong>
-        </div>
-      ) : filteredFeeds.length === 0 ? (
-        <div className={styles.emptyState}>
-          No recent security advisories for {activeFilter}. You are safe! 🛡️
-        </div>
-      ) : (
-        <div className="grid-cards">
-          {filteredFeeds.map(feed => (
-            <SecurityCard key={feed.id} feed={feed} />
-          ))}
-        </div>
-      )}
-      
-      <div className={styles.newsletterSection}>
-        <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', marginTop: '64px' }}>
-          <h2 style={{ marginBottom: '16px', fontSize: '1.5rem' }}>Subscribe for Alerts</h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-            Get instant Matrix/Email notifications when critical CVEs match your tech stack.
-          </p>
-          <div className={styles.formGroup}>
-            <input 
-              type="email" 
-              placeholder="Enter your email" 
-              className={styles.input} 
-            />
-            <button className="btn btn-primary">Subscribe</button>
-          </div>
-        </div>
+        <section className={styles.mainContent}>
+          {loading ? (
+            <div className={styles.emptyState}>Loading security feeds from Appwrite DB...</div>
+          ) : feeds.length === 0 ? (
+            <div className={styles.emptyState}>
+              No security advisories found in the database. <br/>
+              <strong>Click "Force Sync Updates Now" above to load data!</strong>
+            </div>
+          ) : filteredFeeds.length === 0 ? (
+            <div className={styles.emptyState}>
+              No security advisories matched your filters. You are safe! 🛡️
+            </div>
+          ) : (
+            <div className="grid-cards">
+              {filteredFeeds.map(feed => (
+                <SecurityCard key={feed.id} feed={feed} />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );

@@ -1,23 +1,31 @@
 /* app/globals.css */
 
 :root {
-  --bg-primary: #090a0f;
-  --bg-secondary: #12131c;
-  --bg-glass: rgba(255, 255, 255, 0.03);
-  --border-glass: rgba(255, 255, 255, 0.08);
+  /* LIGHT THEME (DEFAULT) */
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-glass: rgba(255, 255, 255, 0.6);
+  --border-glass: rgba(0, 0, 0, 0.08);
+  --shadow-glass: rgba(0, 0, 0, 0.05);
   
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
   --text-muted: #64748b;
   
-  --accent-blue: #3b82f6;
-  --accent-purple: #8b5cf6;
+  --accent-blue: #2563eb;
+  --accent-purple: #7c3aed;
   
-  --severity-critical: #ef4444; 
-  --severity-high: #f97316;
-  --severity-medium: #eab308;
-  --severity-low: #10b981;
-  --severity-neutral: #3b82f6;
+  --severity-critical: #dc2626; 
+  --severity-high: #ea580c;
+  --severity-medium: #ca8a04;
+  --severity-low: #059669;
+  --severity-neutral: #2563eb;
+
+  --btn-glass: rgba(0, 0, 0, 0.05);
+  --btn-glass-hover: rgba(0, 0, 0, 0.1);
+  --btn-glass-border: rgba(0, 0, 0, 0.15);
+  
+  --gradient-text: linear-gradient(135deg, #0f172a, #64748b);
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -26,6 +34,25 @@
   
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #090a0f;
+    --bg-secondary: #12131c;
+    --bg-glass: rgba(255, 255, 255, 0.03);
+    --border-glass: rgba(255, 255, 255, 0.08);
+    --shadow-glass: rgba(0, 0, 0, 0.3);
+
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+
+    --btn-glass: rgba(255, 255, 255, 0.05);
+    --btn-glass-hover: rgba(255, 255, 255, 0.1);
+    --btn-glass-border: rgba(255, 255, 255, 0.15);
+
+    --gradient-text: linear-gradient(135deg, #fff, #94a3b8);
+  }
 }
 
 * {
@@ -54,9 +81,9 @@ a {
 
 /* Utilities */
 .container {
-  max-width: 1200px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 32px;
 }
 
 .glass-panel {
@@ -65,7 +92,7 @@ a {
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-glass);
   border-radius: var(--radius-md);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 30px var(--shadow-glass);
 }
 
 .btn {

@@ -8,8 +8,8 @@
 
 .card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 12px 40px var(--shadow-glass);
+  border-color: var(--btn-glass-border);
 }
 
 .header {
@@ -20,7 +20,7 @@
 }
 
 .techBadge {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--btn-glass);
   padding: 4px 10px;
   border-radius: var(--radius-full);
   font-size: 0.75rem;

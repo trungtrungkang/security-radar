@@ -41,7 +41,11 @@ export default function SecurityCard({ feed }: { feed: SecurityFeed }) {
       <h3 className={styles.title}>{feed.title}</h3>
       <p className={styles.date}>{formattedDate}</p>
       
-      <p className={styles.description}>{feed.description}</p>
+      <p className={styles.description}>
+        {feed.description.length > 150 
+          ? feed.description.substring(0, 150) + '...' 
+          : feed.description}
+      </p>
       
       <div className={styles.footer}>
         <Link href={`/cve/${feed.id}`} className={styles.readMore}>
