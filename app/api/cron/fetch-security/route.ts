@@ -28,7 +28,8 @@ const CIRCL_SOURCES = [
     { vendor: 'apple', product: 'mac_os_x', tech: 'MacOS' },
     { vendor: 'apple', product: 'iphone_os', tech: 'iOS' },
     { vendor: 'google', product: 'android', tech: 'Android' },
-    { vendor: 'apple', product: 'safari', tech: 'Safari' }
+    { vendor: 'apple', product: 'safari', tech: 'Safari' },
+    { vendor: 'docker', product: 'docker', tech: 'Docker' }
 ];
 
 async function notifyAlerts(feed: any, db: any) {
