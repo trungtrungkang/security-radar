@@ -1,0 +1,80 @@
+.main {
+  padding-top: 64px;
+  padding-bottom: 80px;
+  min-height: 100vh;
+}
+
+.headerArea {
+  margin-bottom: 48px;
+  text-align: center;
+}
+
+.title {
+  font-size: 3.5rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #fff, #94a3b8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.highlight {
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.emptyState {
+  padding: 64px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  background: var(--bg-glass);
+  border: 1px dashed var(--border-glass);
+  border-radius: var(--radius-lg);
+}
+
+.newsletterSection {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.formGroup {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.input {
+  flex-grow: 1;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-glass);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input:focus {
+  border-color: var(--accent-blue);
+}
+
+@media (max-width: 640px) {
+  .title {
+    font-size: 2.5rem;
+  }
+  .formGroup {
+    flex-direction: column;
+  }
+}

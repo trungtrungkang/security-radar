@@ -1,0 +1,83 @@
+.card {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  height: 100%;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.techBadge {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.severityBadge {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.severityCritical { background: rgba(249, 115, 22, 0.2); color: var(--severity-critical); border: 1px solid rgba(249, 115, 22, 0.3); }
+.severityHigh { background: rgba(239, 68, 68, 0.2); color: var(--severity-critical); border: 1px solid rgba(239, 68, 68, 0.3); }
+.severityMedium { background: rgba(234, 179, 8, 0.2); color: var(--severity-medium); border: 1px solid rgba(234, 179, 8, 0.3); }
+.severityLow { background: rgba(16, 185, 129, 0.2); color: var(--severity-low); border: 1px solid rgba(16, 185, 129, 0.3); }
+.severityNeutral { background: rgba(59, 130, 246, 0.2); color: var(--severity-neutral); border: 1px solid rgba(59, 130, 246, 0.3); }
+
+.title {
+  font-size: 1.15rem;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+  flex-grow: 1;
+}
+
+.date {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.description {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.footer {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.readMore {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--accent-blue);
+  transition: color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.readMore:hover {
+  color: var(--text-primary);
+}
