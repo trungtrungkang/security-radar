@@ -141,6 +141,10 @@ export async function GET(request: Request) {
         await ensureAppwriteConfig();
         const db = appwriteServer.databases;
         let newCount = 0;
+        
+        const now = new Date();
+        const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+        const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
         // 1. Fetch from GitHub Advisory arrays
         const ghToken = process.env.GITHUB_TOKEN;
@@ -167,6 +171,11 @@ export async function GET(request: Request) {
             const advisories = await res.json();
 
             for (const adv of advisories) {
+                const pubDate = new Date(adv.published_at || adv.updated_at || now.toISOString());
+                
+                // Bỏ qua nếu tin tức cũ hơn 1 năm
+                if (now.getTime() - pubDate.getTime() > ONE_YEAR_MS) continue;
+
                 const severity = adv.severity ? adv.severity.charAt(0).toUpperCase() + adv.severity.slice(1) : 'Medium';
                 const fullDescription = adv.description || adv.summary || 'No description provided.';
 
@@ -174,7 +183,7 @@ export async function GET(request: Request) {
                     title: adv.title || adv.summary || 'Security Advisory',
                     technology: target.tech,
                     severity: severity,
-                    date: adv.published_at || adv.updated_at || new Date().toISOString(),
+                    date: adv.published_at || adv.updated_at || now.toISOString(),
                     description: fullDescription.substring(0, 4999),
                     link: adv.html_url
                 };
@@ -190,7 +199,10 @@ export async function GET(request: Request) {
                             newCount++;
 
                             if (severity === 'High' || severity === 'Critical') {
-                                await notifyAlerts(payload, db);
+                                // Chỉ gửi Email thông báo nếu tin tức mới xuất bản trong vòng 7 ngày qua
+                                if (now.getTime() - pubDate.getTime() <= SEVEN_DAYS_MS) {
+                                    await notifyAlerts(payload, db);
+                                }
                             }
                         } catch (err: any) {
                             console.error(`Failed to create document ${documentId}:`, err);
@@ -226,7 +238,11 @@ export async function GET(request: Request) {
                 if (!cve || !cve.id) continue;
 
                 const title = cve.id; // e.g. CVE-2023-XXXXX
-                const date = cve.published || cve.Published || new Date().toISOString();
+                const dateRaw = cve.published || cve.Published || now.toISOString();
+                const pubDate = new Date(dateRaw);
+                
+                // Bỏ qua nếu CVE cũ hơn 1 năm
+                if (now.getTime() - pubDate.getTime() > ONE_YEAR_MS) continue;
 
                 const descObj = cve.descriptions?.find((d: any) => d.lang === 'en') || cve.descriptions?.[0];
                 const fullDescription = descObj?.value || cve.summary || 'No description provided.';
@@ -247,7 +263,7 @@ export async function GET(request: Request) {
                     title: `${target.tech} Security Update: ${title}`,
                     technology: target.tech,
                     severity: severity,
-                    date: date,
+                    date: dateRaw,
                     description: fullDescription.substring(0, 4999),
                     link: `https://cve.mitre.org/cgi-bin/cvename.cgi?name=${title}`
                 };
@@ -263,7 +279,10 @@ export async function GET(request: Request) {
                             newCount++;
 
                             if (severity === 'High' || severity === 'Critical') {
-                                await notifyAlerts(payload, db);
+                                // Chỉ báo động nếu tin mới xuất hiện trong 7 ngày
+                                if (now.getTime() - pubDate.getTime() <= SEVEN_DAYS_MS) {
+                                    await notifyAlerts(payload, db);
+                                }
                             }
                         } catch (err: any) {
                             console.error(`Failed to create CIRCL document ${documentId}:`, err);
@@ -296,6 +315,12 @@ export async function GET(request: Request) {
                         }
 
                         if (matchTitle && matchLink) {
+                            const dateRaw = item.pubDate || item.isoDate || now.toISOString();
+                            const pubDate = new Date(dateRaw);
+                            
+                            // Bỏ qua RSS lỗi thời hơn 1 năm
+                            if (now.getTime() - pubDate.getTime() > ONE_YEAR_MS) continue;
+
                             // MD5 Anti-duplication Hashing
                             const hashInput = item.link || item.guid || item.title || ID.unique();
                             const docIdHash = crypto.createHash('md5').update(hashInput).digest('hex');
@@ -304,7 +329,7 @@ export async function GET(request: Request) {
                                 title: `[Early Warning] ${item.title}`,
                                 technology: source.tech,
                                 severity: source.severity,
-                                date: item.pubDate || item.isoDate || new Date().toISOString(),
+                                date: dateRaw,
                                 description: `A newly spotted release matching security radar criteria has been announced by ${source.tech}.\n\nRead the full advisory here:\n${item.link}`,
                                 link: item.link || source.url
                             };
@@ -318,7 +343,10 @@ export async function GET(request: Request) {
                                         newCount++;
 
                                         if (source.severity === 'High' || source.severity === 'Critical') {
-                                            await notifyAlerts(payload, db);
+                                            // Chỉ Notify các tin nóng trong 7 ngày
+                                            if (now.getTime() - pubDate.getTime() <= SEVEN_DAYS_MS) {
+                                                await notifyAlerts(payload, db);
+                                            }
                                         }
                                     } catch (err: any) {
                                         console.error(`Failed to create RSS document ${docIdHash}:`, err);
