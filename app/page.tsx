@@ -12,8 +12,34 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    const savedFilters = localStorage.getItem('sr_activeFilters');
+    const savedDate = localStorage.getItem('sr_dateFilter');
+    const savedViewMode = localStorage.getItem('sr_viewMode');
+    const savedPage = localStorage.getItem('sr_page');
+
+    if (savedFilters) setActiveFilters(JSON.parse(savedFilters));
+    if (savedDate) setDateFilter(savedDate);
+    if (savedViewMode) setViewMode(savedViewMode as 'grid' | 'list');
+    if (savedPage) setPage(parseInt(savedPage, 10));
+
+    setIsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (isHydrated) {
+      localStorage.setItem('sr_activeFilters', JSON.stringify(activeFilters));
+      localStorage.setItem('sr_dateFilter', dateFilter);
+      localStorage.setItem('sr_viewMode', viewMode);
+      localStorage.setItem('sr_page', page.toString());
+    }
+  }, [activeFilters, dateFilter, viewMode, page, isHydrated]);
   
   // Newsletter States
   const [email, setEmail] = useState('');
@@ -65,8 +91,23 @@ export default function Home() {
   }, [page, activeFilters, dateFilter]);
 
   useEffect(() => {
-    loadFeeds();
-  }, [loadFeeds]);
+    if (isHydrated) {
+      loadFeeds();
+    }
+  }, [loadFeeds, isHydrated]);
+
+  // Scroll Restoration mechanism
+  useEffect(() => {
+    if (!loading && feeds.length > 0) {
+      const savedScroll = sessionStorage.getItem('sr_scroll_y');
+      if (savedScroll) {
+        setTimeout(() => {
+          window.scrollTo({ top: parseInt(savedScroll, 10), behavior: 'instant' });
+          sessionStorage.removeItem('sr_scroll_y');
+        }, 50); // slight delay ensures DOM has re-flowed to full length
+      }
+    }
+  }, [loading, feeds.length]);
 
   const syncFromGitHub = async () => {
     let headers: Record<string, string> = {};
@@ -221,7 +262,42 @@ export default function Home() {
             </div>
           ) : (
             <>
-              <div className="grid-cards">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+                <div className="glass-panel" style={{ display: 'inline-flex', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-glass)' }}>
+                  <button 
+                    onClick={() => setViewMode('grid')}
+                    style={{ 
+                      padding: '4px 12px', 
+                      fontSize: '0.85rem', 
+                      fontWeight: viewMode === 'grid' ? 600 : 500, 
+                      background: viewMode === 'grid' ? 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))' : 'transparent', 
+                      border: 'none', 
+                      cursor: 'pointer', 
+                      color: viewMode === 'grid' ? '#fff' : 'var(--text-muted)',
+                      opacity: viewMode === 'grid' ? 1 : 0.4,
+                      transition: 'all 0.2s'
+                    }}>
+                    Grid
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('list')}
+                    style={{ 
+                      padding: '4px 12px', 
+                      fontSize: '0.85rem', 
+                      fontWeight: viewMode === 'list' ? 600 : 500, 
+                      background: viewMode === 'list' ? 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))' : 'transparent', 
+                      border: 'none', 
+                      cursor: 'pointer', 
+                      color: viewMode === 'list' ? '#fff' : 'var(--text-muted)',
+                      opacity: viewMode === 'list' ? 1 : 0.4,
+                      transition: 'all 0.2s'
+                    }}>
+                    List
+                  </button>
+                </div>
+              </div>
+
+              <div className={viewMode === 'grid' ? 'grid-cards' : 'list-cards'}>
                 {feeds.map(feed => (
                   <SecurityCard key={feed.id} feed={feed} />
                 ))}

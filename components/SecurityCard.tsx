@@ -48,7 +48,11 @@ export default function SecurityCard({ feed }: { feed: SecurityFeed }) {
       </p>
       
       <div className={styles.footer}>
-        <Link href={`/cve/${feed.id}`} className={styles.readMore}>
+        <Link 
+          href={`/cve/${feed.id}`} 
+          className={styles.readMore}
+          onClick={() => sessionStorage.setItem('sr_scroll_y', window.scrollY.toString())}
+        >
           View Details →
         </Link>
       </div>
