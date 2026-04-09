@@ -101,7 +101,7 @@ async function notifyAlerts(feed: any, db: any) {
 
                 const htmlTemplate = `
                     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                        <img src="${appDomain}/images/logo_bg.png" alt="Security Radar" width="64" style="border-radius: 8px; margin-bottom: 12px; display: block;" />
+                        <img src="${appDomain}/images/logo_512x512.png" alt="Security Radar" width="64" style="border-radius: 8px; margin-bottom: 12px; display: block;" />
                         <h2 style="color: ${feed.severity === 'Critical' ? '#dc2626' : '#ea580c'}; margin-top: 0;">🚨 Security Radar Alert</h2>
                         <h3>New <strong>${feed.severity}</strong> Vulnerability found in ${feed.technology}!</h3>
                         <p><strong>Title:</strong> ${feed.title}</p>
