@@ -10,8 +10,7 @@ export default function FilterBar({
   onClearFilters,
   dateFilter,
   onDateChange,
-  datesWithCounts,
-  totalFeeds
+  availableMonths
 } : {
   technologies: string[];
   activeFilters: string[];
@@ -19,8 +18,7 @@ export default function FilterBar({
   onClearFilters: () => void;
   dateFilter: string;
   onDateChange: (date: string) => void;
-  datesWithCounts: [string, number][];
-  totalFeeds: number;
+  availableMonths: string[];
 }) {
   return (
     <div className={styles.filterContainer}>
@@ -50,10 +48,10 @@ export default function FilterBar({
           value={dateFilter}
           onChange={(e) => onDateChange(e.target.value)}
         >
-          <option value="">All Dates ({totalFeeds})</option>
-          {datesWithCounts.map(([date, count]) => (
-            <option key={date} value={date}>
-              {date} ({count})
+          <option value="">All Times</option>
+          {availableMonths.map((month) => (
+            <option key={month} value={month}>
+              {new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
             </option>
           ))}
         </select>

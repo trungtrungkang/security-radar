@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import SecurityCard, { SecurityFeed } from '@/components/SecurityCard';
 import FilterBar from '@/components/FilterBar';
 import styles from './page.module.css';
@@ -11,6 +11,9 @@ export default function Home() {
   const [feeds, setFeeds] = useState<SecurityFeed[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   
   // Newsletter States
   const [email, setEmail] = useState('');
@@ -40,23 +43,30 @@ export default function Home() {
     setSubscribing(false);
   };
 
-  const loadFeeds = async () => {
+  const loadFeeds = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/security-feeds', { cache: 'no-store' });
+      const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('limit', '30');
+      if (activeFilters.length > 0) params.append('tech', activeFilters.join(','));
+      if (dateFilter) params.append('date', dateFilter);
+
+      const res = await fetch(`/api/security-feeds?${params.toString()}`, { cache: 'no-store' });
       const json = await res.json();
       if (json.success) {
         setFeeds(json.data);
+        setTotalPages(Math.ceil(json.total / json.limit));
       }
     } catch (e) {
       console.error('List feeds error:', e);
     }
     setLoading(false);
-  };
+  }, [page, activeFilters, dateFilter]);
 
   useEffect(() => {
     loadFeeds();
-  }, []);
+  }, [loadFeeds]);
 
   const syncFromGitHub = async () => {
     let headers: Record<string, string> = {};
@@ -82,23 +92,24 @@ export default function Home() {
     setSyncing(false);
   };
 
-  const technologies = useMemo(() => {
-    const techSet = new Set(feeds.map(feed => feed.technology));
-    return Array.from(techSet).sort();
-  }, [feeds]);
+  const technologies = [
+    'Android', 'Apple', 'Appwrite', 'BleepingComputer', 'Docker', 'Golang', 'MacOS', 'Next.js', 'Node.js', 'Safari', 'Windows', 'iOS'
+  ];
 
-  const datesWithCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    feeds.forEach(feed => {
-      try {
-        const dateStr = new Date(feed.date).toISOString().split('T')[0];
-        counts[dateStr] = (counts[dateStr] || 0) + 1;
-      } catch (e) {}
-    });
-    return Object.entries(counts).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [feeds]);
+  const availableMonths = useMemo(() => {
+    const months = [];
+    for (let i = 0; i < 12; i++) {
+        const d = new Date();
+        d.setUTCMonth(d.getUTCMonth() - i);
+        const year = d.getUTCFullYear();
+        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+        months.push(`${year}-${month}`);
+    }
+    return months;
+  }, []);
 
   const toggleFilter = (tech: string) => {
+    setPage(1);
     setActiveFilters(prev => 
       prev.includes(tech) 
         ? prev.filter(t => t !== tech) 
@@ -106,23 +117,15 @@ export default function Home() {
     );
   };
 
-  const clearFilters = () => setActiveFilters([]);
+  const clearFilters = () => {
+    setPage(1);
+    setActiveFilters([]);
+  };
 
-  const filteredFeeds = useMemo(() => {
-    return feeds.filter(feed => {
-      const matchTech = activeFilters.length === 0 || activeFilters.includes(feed.technology);
-      let matchDate = true;
-      if (dateFilter) {
-        try {
-          const feedDateString = new Date(feed.date).toISOString().split('T')[0];
-          matchDate = feedDateString === dateFilter;
-        } catch(e) {
-          matchDate = true;
-        }
-      }
-      return matchTech && matchDate;
-    });
-  }, [activeFilters, dateFilter, feeds]);
+  const handleDateChange = (date: string) => {
+    setPage(1);
+    setDateFilter(date);
+  };
 
   return (
     <main className={`container ${styles.main}`}>
@@ -137,16 +140,15 @@ export default function Home() {
 
       <div className={styles.contentLayout}>
         <aside className={styles.sidebar}>
-          {!loading && feeds.length > 0 ? (
+          {!loading ? (
             <FilterBar 
               technologies={technologies} 
               activeFilters={activeFilters}
               onToggleFilter={toggleFilter}
               onClearFilters={clearFilters}
               dateFilter={dateFilter}
-              onDateChange={setDateFilter}
-              datesWithCounts={datesWithCounts}
-              totalFeeds={feeds.length}
+              onDateChange={handleDateChange}
+              availableMonths={availableMonths}
             />
           ) : (
             <div className="glass-panel" style={{ padding: '24px', opacity: 0.7 }}>
@@ -213,16 +215,23 @@ export default function Home() {
               No security advisories found in the database. <br/>
               <strong>Click "Force Sync Updates Now" above to load data!</strong>
             </div>
-          ) : filteredFeeds.length === 0 ? (
+          ) : feeds.length === 0 ? (
             <div className={styles.emptyState}>
-              No security advisories matched your filters. You are safe! 🛡️
+              No security advisories matched your filters or database is empty. You are safe! 🛡️
             </div>
           ) : (
-            <div className="grid-cards">
-              {filteredFeeds.map(feed => (
-                <SecurityCard key={feed.id} feed={feed} />
-              ))}
-            </div>
+            <>
+              <div className="grid-cards">
+                {feeds.map(feed => (
+                  <SecurityCard key={feed.id} feed={feed} />
+                ))}
+              </div>
+              <div className={styles.paginationSettings} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '32px' }}>
+                <button className="btn" disabled={page <= 1} onClick={() => setPage(page - 1)} style={{ padding: '8px 16px', borderRadius: '8px' }}>Previous</button>
+                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Page {page} of {totalPages || 1}</span>
+                <button className="btn" disabled={page >= totalPages} onClick={() => setPage(page + 1)} style={{ padding: '8px 16px', borderRadius: '8px' }}>Next</button>
+              </div>
+            </>
           )}
         </section>
       </div>

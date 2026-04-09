@@ -3,6 +3,7 @@ import { appwriteServer, APPWRITE_DB_ID, APPWRITE_COLLECTION_ID, APPWRITE_SUBSCR
 import { ID, Query } from 'node-appwrite';
 import { Resend } from 'resend';
 import Parser from 'rss-parser';
+import crypto from 'crypto';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const rssParser = new Parser();
@@ -32,6 +33,37 @@ const CIRCL_SOURCES = [
     { vendor: 'docker', product: 'docker', tech: 'Docker' }
 ];
 
+const RSS_SOURCES = [
+    {
+        url: 'https://nodejs.org/en/feed/blog.xml',
+        tech: 'Node.js',
+        titleMatch: ['security'],
+        linkMatch: ['/vulnerability/'],
+        severity: 'High'
+    },
+    {
+        url: 'https://go.dev/blog/feed.atom',
+        tech: 'Golang',
+        titleMatch: ['security'],
+        linkMatch: [],
+        severity: 'High'
+    },
+    {
+        url: 'https://www.bleepingcomputer.com/feed/',
+        tech: 'BleepingComputer',
+        titleMatch: ['zero-day', 'cve-', 'critical'],
+        linkMatch: [],
+        severity: 'Critical'
+    },
+    {
+        url: 'https://developer.apple.com/news/releases/rss/releases.rss',
+        tech: 'Apple',
+        titleMatch: [],
+        linkMatch: [],
+        severity: 'Medium'
+    }
+];
+
 async function notifyAlerts(feed: any, db: any) {
     // 1. Notify Matrix
     const webhookUrl = process.env.MATRIX_WEBHOOK_URL;
@@ -59,9 +91,9 @@ async function notifyAlerts(feed: any, db: any) {
             const subsData = await db.listDocuments(APPWRITE_DB_ID, APPWRITE_SUBSCRIBER_COLLECTION_ID, [
                 Query.limit(100) // Supports up to 100 subscribers per request right now
             ]);
-            
+
             const emails = subsData.documents.map((doc: any) => doc.email);
-            
+
             if (emails.length > 0) {
                 const htmlTemplate = `
                     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
@@ -95,7 +127,7 @@ export async function GET(request: Request) {
     try {
         const authHeader = request.headers.get('Authorization');
         if (
-            process.env.NODE_ENV !== 'development' && 
+            process.env.NODE_ENV !== 'development' &&
             authHeader !== `Bearer ${process.env.CRON_SECRET}`
         ) {
             return NextResponse.json({ success: false, error: 'Unauthorized. Invalid Cron Secret' }, { status: 401 });
@@ -113,7 +145,7 @@ export async function GET(request: Request) {
                 'X-GitHub-Api-Version': '2022-11-28',
                 'User-Agent': 'Security-Tracker-App'
             };
-            
+
             if (ghToken) {
                 headers['Authorization'] = `Bearer ${ghToken}`;
             }
@@ -128,11 +160,11 @@ export async function GET(request: Request) {
             }
 
             const advisories = await res.json();
-            
+
             for (const adv of advisories) {
                 const severity = adv.severity ? adv.severity.charAt(0).toUpperCase() + adv.severity.slice(1) : 'Medium';
                 const fullDescription = adv.description || adv.summary || 'No description provided.';
-                
+
                 const payload = {
                     title: adv.title || adv.summary || 'Security Advisory',
                     technology: target.tech,
@@ -176,24 +208,24 @@ export async function GET(request: Request) {
             }
 
             const data = await res.json();
-            
+
             // CIRCL returns a deeply nested object: { results: { fkie_nvd: [ ["key", {cve_obj}] ] } }
             const resultsObj = data?.results || {};
             const nvdArray = resultsObj.fkie_nvd || resultsObj.nvd || [];
-            
+
             // Extract the actual CVE objects which are at index 1 of each tuple
             const rawVulns = Array.isArray(data) ? data : nvdArray.map((item: any) => Array.isArray(item) ? item[1] : item);
             const vulnerabilities = rawVulns.slice(0, 5); // Grab 5 most recent
-            
+
             for (const cve of vulnerabilities) {
                 if (!cve || !cve.id) continue;
 
                 const title = cve.id; // e.g. CVE-2023-XXXXX
                 const date = cve.published || cve.Published || new Date().toISOString();
-                
+
                 const descObj = cve.descriptions?.find((d: any) => d.lang === 'en') || cve.descriptions?.[0];
                 const fullDescription = descObj?.value || cve.summary || 'No description provided.';
-                
+
                 let severity = 'Medium';
                 if (cve.metrics?.cvssMetricV31?.[0]) {
                     const sevScore = cve.metrics.cvssMetricV31[0].cvssData.baseSeverity;
@@ -211,7 +243,7 @@ export async function GET(request: Request) {
                     technology: target.tech,
                     severity: severity,
                     date: date,
-                    description: fullDescription.substring(0, 4999), 
+                    description: fullDescription.substring(0, 4999),
                     link: `https://cve.mitre.org/cgi-bin/cvename.cgi?name=${title}`
                 };
 
@@ -236,42 +268,62 @@ export async function GET(request: Request) {
             }
         }
 
-        // 3. Fetch from Node.js RSS Blog Feed for Zero-day early warnings
+        // 3. Fetch from Multi-Channel RSS Sources
         try {
-            const feedUrl = 'https://nodejs.org/en/feed/blog.xml';
-            const feed = await rssParser.parseURL(feedUrl);
-            
-            for (const item of feed.items) {
-                const titleLower = item.title?.toLowerCase() || '';
-                const linkLower = item.link?.toLowerCase() || '';
-                
-                // Filter specifically for Node.js Security Releases
-                if (titleLower.includes('security') && linkLower.includes('/vulnerability/')) {
-                    const urlSegments = item.link?.split('/') || [];
-                    const slug = urlSegments.pop() || ID.unique(); 
-                    
-                    const payload = {
-                        title: `[Early Warning] ${item.title}`,
-                        technology: 'Node.js',
-                        severity: 'High', // Default to High to trigger Resend blast
-                        date: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
-                        description: `A new Security Release has been announced by the Node.js team on their official blog. \nIt is highly recommended to prioritize patching as soon as the release drops.\n\nRead the full advisory and release boundaries here: \n${item.link}`,
-                        link: item.link || 'https://nodejs.org/en/blog'
-                    };
+            for (const source of RSS_SOURCES) {
+                try {
+                    const feed = await rssParser.parseURL(source.url);
 
-                    try {
-                        await db.getDocument(APPWRITE_DB_ID, APPWRITE_COLLECTION_ID, slug);
-                    } catch (e: any) {
-                        if (e.code === 404) {
+                    for (const item of feed.items) {
+                        const titleLower = item.title?.toLowerCase() || '';
+                        const linkLower = item.link?.toLowerCase() || '';
+
+                        // Rule Matching Engine
+                        let matchTitle = source.titleMatch.length === 0; // If empty, auto-match
+                        let matchLink = source.linkMatch.length === 0;
+
+                        if (source.titleMatch.length > 0) {
+                            matchTitle = source.titleMatch.some(keyword => titleLower.includes(keyword));
+                        }
+
+                        if (source.linkMatch.length > 0) {
+                            matchLink = source.linkMatch.some(keyword => linkLower.includes(keyword));
+                        }
+
+                        if (matchTitle && matchLink) {
+                            // MD5 Anti-duplication Hashing
+                            const hashInput = item.link || item.guid || item.title || ID.unique();
+                            const docIdHash = crypto.createHash('md5').update(hashInput).digest('hex');
+
+                            const payload = {
+                                title: `[Early Warning] ${item.title}`,
+                                technology: source.tech,
+                                severity: source.severity,
+                                date: item.pubDate || item.isoDate || new Date().toISOString(),
+                                description: `A newly spotted release matching security radar criteria has been announced by ${source.tech}.\n\nRead the full advisory here:\n${item.link}`,
+                                link: item.link || source.url
+                            };
+
                             try {
-                                await db.createDocument(APPWRITE_DB_ID, APPWRITE_COLLECTION_ID, slug, payload);
-                                newCount++;
-                                await notifyAlerts(payload, db);
-                            } catch (err: any) {
-                                console.error(`Failed to create RSS document ${slug}:`, err);
+                                await db.getDocument(APPWRITE_DB_ID, APPWRITE_COLLECTION_ID, docIdHash);
+                            } catch (e: any) {
+                                if (e.code === 404) {
+                                    try {
+                                        await db.createDocument(APPWRITE_DB_ID, APPWRITE_COLLECTION_ID, docIdHash, payload);
+                                        newCount++;
+
+                                        if (source.severity === 'High' || source.severity === 'Critical') {
+                                            await notifyAlerts(payload, db);
+                                        }
+                                    } catch (err: any) {
+                                        console.error(`Failed to create RSS document ${docIdHash}:`, err);
+                                    }
+                                }
                             }
                         }
                     }
+                } catch (sourceError) {
+                    console.warn(`Failed to fetch RSS for ${source.tech}:`, sourceError);
                 }
             }
         } catch (error) {
